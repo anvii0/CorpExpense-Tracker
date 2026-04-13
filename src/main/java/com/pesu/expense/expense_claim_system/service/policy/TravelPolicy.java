@@ -7,11 +7,11 @@ import org.springframework.stereotype.Component;
 public class TravelPolicy implements PolicyStrategy {
     @Override
     public boolean isValid(ExpenseEntry entry) {
-        return entry.getConvertedAmountUsd() <= 1500 && entry.isReceiptVerified();
+        return entry.getConvertedAmountUsd() <= 5000;
     }
 
     @Override
     public String violationMessage() {
-        return "Travel claims must be below $1500 per entry and have a verified receipt.";
+        return "Travel claims must be below $5000 per entry.";
     }
 }

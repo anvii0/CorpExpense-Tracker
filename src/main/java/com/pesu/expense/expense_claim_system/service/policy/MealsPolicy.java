@@ -7,11 +7,11 @@ import org.springframework.stereotype.Component;
 public class MealsPolicy implements PolicyStrategy {
     @Override
     public boolean isValid(ExpenseEntry entry) {
-        return entry.getConvertedAmountUsd() <= 75;
+        return entry.getConvertedAmountUsd() <= 500;
     }
 
     @Override
     public String violationMessage() {
-        return "Meals are capped at $75 per entry.";
+        return "Meals are capped at $500 per entry.";
     }
 }

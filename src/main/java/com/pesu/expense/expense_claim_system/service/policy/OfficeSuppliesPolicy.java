@@ -7,11 +7,11 @@ import org.springframework.stereotype.Component;
 public class OfficeSuppliesPolicy implements PolicyStrategy {
     @Override
     public boolean isValid(ExpenseEntry entry) {
-        return entry.getConvertedAmountUsd() <= 250;
+        return entry.getConvertedAmountUsd() <= 2000;
     }
 
     @Override
     public String violationMessage() {
-        return "Office supplies are capped at $250 per entry.";
+        return "Office supplies must be below $2000 per entry.";
     }
 }
