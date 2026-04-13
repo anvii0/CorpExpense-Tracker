@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CorpExpense - Submit Claim</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div class="container" style="max-width: 600px;">
+        <header>
+            <h1 style="font-size: 2rem;">Submit Claim</h1>
+            <div class="actions">
+                <a th:href="@{/}" class="btn btn-outline">&larr; Back to Dashboard</a>
+            </div>
+        </header>
+
+        <section class="glass-panel">
+            <form th:action="@{/submit}" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="userId">Employee Select</label>
+                    <select id="userId" name="userId" required>
+                        <option value="">-- Select Employee --</option>
+                        <option th:each="user : ${users}" th:value="${user.id}" th:text="${user.name} + ' (' + ${user.role} + ')'"></option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="title">Expense Title</label>
+                    <input type="text" id="title" name="title" required placeholder="e.g., Client Dinner in Paris">
+                </div>
+
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="amount">Original Amount</label>
+                        <input type="number" id="amount" name="amount" step="0.01" required placeholder="100.00">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="currency">Currency Code</label>
+                        <select id="currency" name="currency">
+                            <option value="EUR">EUR (€)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="INR">INR (₹)</option>
+                            <option value="JPY">JPY (¥)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description (Optional)</label>
+                    <textarea id="description" name="description" rows="3" placeholder="Brief details about the expense..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="paymentMethod">Preferred Reimbursement Method</label>
+                    <select id="paymentMethod" name="paymentMethod">
+                        <option value="DirectDeposit">Direct Deposit</option>
+                        <option value="Cheque">Physical Cheque</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="receipt">Attach Receipt Image (Optional)</label>
+                    <input type="file" id="receipt" name="receipt" accept="image/*,application/pdf">
+                </div>
+
+                <div style="margin-top: 2rem;">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">Submit using ExpenseBuilder</button>
+                </div>
+            </form>
+        </section>
+    </div>
+</body>
+</html>
