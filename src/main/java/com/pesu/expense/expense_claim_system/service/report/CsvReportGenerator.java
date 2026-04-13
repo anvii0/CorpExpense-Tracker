@@ -3,30 +3,34 @@ package com.pesu.expense.expense_claim_system.service.report;
 import com.pesu.expense.expense_claim_system.model.Expense;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 @Component("CsvReport")
-public class CsvReportGenerator extends ReportGenerator {
-    
-    @Override
-    protected String generateHeader() {
-        return "ID,Title,Amount(USD),Status\n";
-    }
+public class CsvReportGenerator implements ReportGenerator {
 
     @Override
-    protected String generateBody(List<Expense> expenses) {
-        StringBuilder body = new StringBuilder();
+    public byte[] generateReport(List<Expense> expenses, LocalDate from, LocalDate to) {
+        StringBuilder body = new StringBuilder("ID,Title,Employee,Amount(USD),Status,Submitted\n");
         for(Expense exp : expenses) {
             body.append(exp.getId()).append(",")
                 .append(exp.getTitle()).append(",")
+                .append(exp.getEmployee() != null ? exp.getEmployee().getName() : "NA").append(",")
                 .append(exp.getConvertedAmountUsd()).append(",")
-                .append(exp.getStatus()).append("\n");
+                .append(exp.getStatus()).append(",")
+                .append(exp.getSubmitDate()).append("\n");
         }
-        return body.toString();
+        return body.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     @Override
-    protected String generateFooter() {
-        return "--- End of Report ---\n";
+    public String contentType() {
+        return "text/csv";
+    }
+
+    @Override
+    public String fileName() {
+        return "monthly-expenses.csv";
     }
 }

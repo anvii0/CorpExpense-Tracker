@@ -19,8 +19,20 @@ public class DepartmentBudget {
     private String departmentName;
     private Double totalAllocated;
     private Double currentlySpent;
-    
+
     public boolean canApprove(Double amount) {
         return (currentlySpent + amount) <= totalAllocated;
+    }
+
+    public Double getRemainingBudget() {
+        return totalAllocated - currentlySpent;
+    }
+
+    public boolean isNearThreshold() {
+        return totalAllocated > 0 && getRemainingBudget() <= (totalAllocated * 0.2);
+    }
+
+    public void deduct(Double amount) {
+        this.currentlySpent += amount;
     }
 }

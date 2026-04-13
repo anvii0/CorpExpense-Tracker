@@ -1,14 +1,23 @@
 package com.pesu.expense.expense_claim_system.service.approval;
 
 import com.pesu.expense.expense_claim_system.model.Expense;
+import com.pesu.expense.expense_claim_system.model.User;
 
-// Owner: Student 2 (Chain of Responsibility)
 public abstract class ApprovalHandler {
     protected ApprovalHandler nextHandler;
 
-    public void setNextHandler(ApprovalHandler nextHandler) {
+    public ApprovalHandler setNextHandler(ApprovalHandler nextHandler) {
         this.nextHandler = nextHandler;
+        return nextHandler;
     }
 
-    public abstract void approve(Expense expense);
+    public abstract boolean supports(Expense expense);
+
+    public abstract void approve(Expense expense, User approver);
+
+    protected void forward(Expense expense, User approver) {
+        if (nextHandler != null) {
+            nextHandler.approve(expense, approver);
+        }
+    }
 }

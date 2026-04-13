@@ -5,35 +5,64 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Builder.Default;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
-@Table(name = "expenses")
+@Table(name = "expense_claims")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder // Owner: Student 1 (Builder Pattern implementation)
+@Builder
 public class Expense {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     private String title;
     private String description;
-    private Double amount;
-    private String currency; // Default USD
-    private Double convertedAmountUsd; 
-    
+
+    @Column(name = "total_amount_usd")
+    @Builder.Default
+    private Double convertedAmountUsd = 0.0;
+
     private LocalDate submitDate;
-    private String status; // SUBMITTED, PENDING_MANAGER_APPROVAL, PENDING_FINANCE_APPROVAL, PENDING_DIRECTOR_APPROVAL, APPROVED, REJECTED, PAID
-    
-    private String receiptImagePath; // Minor Feature: Receipt Attachment
-    
-    private String paymentMethod; // Direct Deposit, Cheque
-    
+    private LocalDate lastUpdatedDate;
+
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private ExpenseStatus status = ExpenseStatus.DRAFT;
+
+    @Builder.Default
+    private String paymentMethod = "DirectDeposit";
+
     @ManyToOne
     @JoinColumn(name = "employee_id")
     private User employee;
+
+    @OneToMany(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Default
+    private List<ExpenseEntry> entries = new ArrayList<>();
+
+    public void addEntry(ExpenseEntry entry) {
+        entry.setClaim(this);
+        entries.add(entry);
+        recalculateTotal();
+    }
+
+    public void recalculateTotal() {
+        this.convertedAmountUsd = entries.stream()
+                .map(ExpenseEntry::getConvertedAmountUsd)
+                .filter(value -> value != null)
+                .reduce(0.0, Double::sum);
+        this.lastUpdatedDate = LocalDate.now();
+    }
+
+    public boolean allEntriesCompliant() {
+        return !entries.isEmpty() && entries.stream().allMatch(ExpenseEntry::isSubmissionReady);
+    }
 }

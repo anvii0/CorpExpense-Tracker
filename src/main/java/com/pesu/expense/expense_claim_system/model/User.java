@@ -18,6 +18,6 @@ public class User {
     
     private String name;
     private String email;
-    private String role; // EMPLOYEE, MANAGER, FINANCE, DIRECTOR, ADMIN
+    private String role; // EMPLOYEE, TEAM_LEAD, DEPT_HEAD, CFO, FINANCE, ADMIN
     private String department;
 }

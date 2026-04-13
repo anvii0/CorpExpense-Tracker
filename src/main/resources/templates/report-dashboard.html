@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Generate Monthly Report</h1>
+        <div class="actions">
+            <a th:href="@{/}" class="btn btn-outline">Dashboard</a>
+        </div>
+    </header>
+
+    <section class="glass-panel">
+        <form th:action="@{/reports/download}" method="get">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="from">From</label>
+                    <input id="from" name="from" type="date">
+                </div>
+                <div class="form-group">
+                    <label for="to">To</label>
+                    <input id="to" name="to" type="date">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="format">Export format</label>
+                <select id="format" name="format">
+                    <option value="csv">CSV</option>
+                    <option value="pdf">PDF</option>
+                    <option value="excel">Excel</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" type="submit">Generate and Export</button>
+        </form>
+    </section>
+</div>
+</body>
+</html>
