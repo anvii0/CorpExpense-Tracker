@@ -1,5 +1,11 @@
 package com.pesu.expense.expense_claim_system.service.claim;
 
+import java.time.LocalDate;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.pesu.expense.expense_claim_system.model.EntryCategory;
 import com.pesu.expense.expense_claim_system.model.Expense;
 import com.pesu.expense.expense_claim_system.model.ExpenseEntry;
@@ -7,6 +13,7 @@ import com.pesu.expense.expense_claim_system.model.ExpenseStatus;
 import com.pesu.expense.expense_claim_system.model.User;
 import com.pesu.expense.expense_claim_system.repository.ExpenseEntryRepository;
 import com.pesu.expense.expense_claim_system.repository.ExpenseRepository;
+import com.pesu.expense.expense_claim_system.repository.UserRepository;
 import com.pesu.expense.expense_claim_system.service.approval.ApprovalService;
 import com.pesu.expense.expense_claim_system.service.audit.AuditTrailService;
 import com.pesu.expense.expense_claim_system.service.budget.BudgetService;
@@ -15,14 +22,9 @@ import com.pesu.expense.expense_claim_system.service.notification.NotificationSe
 import com.pesu.expense.expense_claim_system.service.payment.PaymentService;
 import com.pesu.expense.expense_claim_system.service.policy.PolicyStrategy;
 import com.pesu.expense.expense_claim_system.service.policy.PolicyStrategyFactory;
-import com.pesu.expense.expense_claim_system.service.receipt.ReceiptExtractionResult;
 import com.pesu.expense.expense_claim_system.service.receipt.ReceiptOCRService;
-import jakarta.transaction.Transactional;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.time.LocalDate;
-import java.util.List;
+import jakarta.transaction.Transactional;
 
 @Service
 @Transactional
@@ -38,6 +40,7 @@ public class ExpenseClaimService {
     private final BudgetService budgetService;
     private final AuditTrailService auditTrailService;
     private final NotificationService notificationService;
+    private final UserRepository userRepository;
 
     public ExpenseClaimService(
             ExpenseRepository expenseRepository,
@@ -49,7 +52,8 @@ public class ExpenseClaimService {
             PaymentService paymentService,
             BudgetService budgetService,
             AuditTrailService auditTrailService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            UserRepository userRepository) {
         this.expenseRepository = expenseRepository;
         this.expenseEntryRepository = expenseEntryRepository;
         this.currencyService = currencyService;
@@ -60,6 +64,7 @@ public class ExpenseClaimService {
         this.budgetService = budgetService;
         this.auditTrailService = auditTrailService;
         this.notificationService = notificationService;
+        this.userRepository = userRepository;
     }
 
     public Expense createDraft(String title, String description, String paymentMethod, User employee) {
@@ -72,22 +77,12 @@ public class ExpenseClaimService {
                 .lastUpdatedDate(LocalDate.now())
                 .status(ExpenseStatus.DRAFT)
                 .build();
-        Expense saved = expenseRepository.save(expense);
-        auditTrailService.logAction(employee, "CLAIM_DRAFT_CREATED", saved, "Claim draft created");
-        return saved;
+        return expenseRepository.save(expense);
     }
 
-    public ExpenseEntry addEntry(
-            Long claimId,
-            EntryCategory category,
-            Double amount,
-            String currency,
-            String description,
-            MultipartFile receipt) {
+    public ExpenseEntry addEntry(Long claimId, EntryCategory category, Double amount, String currency, String description, String department, MultipartFile receipt) {
         Expense claim = findClaim(claimId);
-        ReceiptExtractionResult extractionResult = receiptOCRService.extractData(receipt);
-        boolean verified = receipt != null && !receipt.isEmpty()
-                && receiptOCRService.verifyAmountMatches(extractionResult.getExtractedAmount(), amount);
+        receiptOCRService.extractData(receipt);
         double converted = currencyService.convertToUsd(amount, currency);
 
         ExpenseEntry entry = new ExpenseEntry();
@@ -96,67 +91,125 @@ public class ExpenseClaimService {
         entry.setCurrency(currency.toUpperCase());
         entry.setConvertedAmountUsd(converted);
         entry.setDescription(description);
-        entry.setMerchant(extractionResult.getMerchant());
-        entry.setExpenseDate(LocalDate.now());
-        entry.setReceiptImagePath(receipt != null && !receipt.isEmpty() ? receipt.getOriginalFilename() : null);
-        entry.setReceiptVerified(verified);
-        entry.setManualReviewRequired(extractionResult.isManualEntryRequired() || !verified);
-
+        entry.setReceiptImagePath(receipt != null ? receipt.getOriginalFilename() : null);
+        entry.setDepartment(department);
+        
         PolicyStrategy policy = policyStrategyFactory.getPolicy(category);
         entry.setPolicyCompliant(policy != null && policy.isValid(entry));
 
         claim.addEntry(entry);
         expenseRepository.save(claim);
-        auditTrailService.logAction(claim.getEmployee(), "RECEIPT_UPLOADED", claim,
-                "Entry added in " + category + " category. OCR merchant=" + extractionResult.getMerchant());
         return expenseEntryRepository.save(entry);
     }
 
     public Expense submitClaim(Long claimId) {
         Expense claim = findClaim(claimId);
-        if (!claim.allEntriesCompliant()) {
-            throw new IllegalStateException("All entries must be compliant before submission.");
+        
+        if (claim.getEntries().isEmpty()) {
+            throw new IllegalStateException("Claim is empty.");
         }
-        approvalService.submitForApproval(claim);
+        
+        claim.setStatus(ExpenseStatus.PENDING_TEAM_LEAD); 
         claim.setSubmitDate(LocalDate.now());
+
+        // FIX: Matches required signature (User, String, Expense, String)
         auditTrailService.logAction(claim.getEmployee(), "SUBMITTED", claim, "Claim submitted for approval");
-        notificationService.notify(claim, "Claim submitted for approval.");
+
+        approvalService.submitForApproval(claim);
+        
         return expenseRepository.save(claim);
     }
 
-    public Expense approveClaim(Long claimId) {
+    public Expense approveClaim(Long claimId, User approver) {
         Expense claim = findClaim(claimId);
-        approvalService.processApproval(claim, claim.getEmployee());
-        auditTrailService.logAction(null, "APPROVED", claim, "Claim moved to " + claim.getStatus());
-        notificationService.notify(claim, "Claim status changed to " + claim.getStatus());
-        return expenseRepository.save(claim);
+        
+        if (claim.getEmployee().getEmail().equals(approver.getEmail())) {
+            throw new RuntimeException("You cannot approve your own claim");
+        }
+        
+        approvalService.processApproval(claim, approver);
+
+        // FIX: Matches required signature (User, String, Expense, String)
+        auditTrailService.logAction(approver, "APPROVED", claim, "Approved at current stage");
+
+        Expense saved = expenseRepository.save(claim);
+
+        // If the claim just reached FULLY_APPROVED, deduct budgets per-department
+        // but do NOT process payment (leave reimbursement as a separate step).
+        if (saved.getStatus() == ExpenseStatus.FULLY_APPROVED) {
+            java.util.Map<String, Double> deptTotals = new java.util.HashMap<>();
+            for (ExpenseEntry e : saved.getEntries()) {
+                String dept = e.getDepartment() != null && !e.getDepartment().isEmpty()
+                        ? e.getDepartment()
+                        : saved.getEmployee().getDepartment();
+                deptTotals.put(dept, deptTotals.getOrDefault(dept, 0.0)
+                        + (e.getConvertedAmountUsd() != null ? e.getConvertedAmountUsd() : 0.0));
+            }
+
+            // Check availability for all departments
+            for (var entry : deptTotals.entrySet()) {
+                if (!budgetService.checkAvailability(entry.getValue(), entry.getKey())) {
+                    throw new IllegalStateException("Budget exceeded for department: " + entry.getKey());
+                }
+            }
+
+            // Deduct budgets (persisted) so dashboard reflects updated values
+            for (var entry : deptTotals.entrySet()) {
+                budgetService.deductBudget(entry.getValue(), entry.getKey());
+            }
+
+            // Log budget deduction event (keeps status as FULLY_APPROVED)
+            auditTrailService.logAction(approver, "BUDGET_DEDUCTED", saved, "Budgets deducted on approval");
+            saved = expenseRepository.save(saved);
+        }
+
+        return saved;
     }
 
     public Expense rejectClaim(Long claimId) {
         Expense claim = findClaim(claimId);
         approvalService.reject(claim);
-        auditTrailService.logAction(null, "REJECTED", claim, "Claim rejected in approval workflow");
-        notificationService.notify(claim, "Claim rejected.");
         return expenseRepository.save(claim);
     }
 
     public Expense reimburseClaim(Long claimId) {
         Expense claim = findClaim(claimId);
-        if (!budgetService.checkAvailability(claim.getConvertedAmountUsd(), claim.getEmployee().getDepartment())) {
-            throw new IllegalStateException("Department budget is insufficient for reimbursement.");
+        if (claim.getStatus() != ExpenseStatus.FULLY_APPROVED) {
+            throw new IllegalStateException("Claim must be FULLY_APPROVED before reimbursement.");
         }
-        budgetService.deductBudget(claim.getConvertedAmountUsd(), claim.getEmployee().getDepartment());
+
+        // Aggregate amounts per department from entries
+        java.util.Map<String, Double> deptTotals = new java.util.HashMap<>();
+        for (ExpenseEntry e : claim.getEntries()) {
+            String dept = e.getDepartment() != null && !e.getDepartment().isEmpty() ? e.getDepartment() : claim.getEmployee().getDepartment();
+            deptTotals.put(dept, deptTotals.getOrDefault(dept, 0.0) + (e.getConvertedAmountUsd() != null ? e.getConvertedAmountUsd() : 0.0));
+        }
+
+        // Check availability for all departments
+        for (var entry : deptTotals.entrySet()) {
+            if (!budgetService.checkAvailability(entry.getValue(), entry.getKey())) {
+                throw new IllegalStateException("Budget exceeded for department: " + entry.getKey());
+            }
+        }
+
+        // Deduct budgets
+        for (var entry : deptTotals.entrySet()) {
+            budgetService.deductBudget(entry.getValue(), entry.getKey());
+        }
+
+        // Process payment and mark as PAID
         paymentService.processPayment(claim);
-        auditTrailService.logAction(null, "REPORT_EXPORTED", claim, "Budget checked and reimbursement processed");
-        notificationService.notify(claim, "Claim reimbursed using " + claim.getPaymentMethod());
+        claim.setStatus(ExpenseStatus.PAID);
+        auditTrailService.logAction(null, "PAID", claim, "Claim paid after reimbursement");
         return expenseRepository.save(claim);
     }
 
     public Expense findClaim(Long id) {
-        return expenseRepository.findById(id).orElseThrow();
+        return expenseRepository.findById(id).orElseThrow(() -> new RuntimeException("Claim not found"));
     }
 
     public List<Expense> allClaims() {
         return expenseRepository.findAll();
     }
 }
+

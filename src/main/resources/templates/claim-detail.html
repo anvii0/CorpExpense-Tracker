@@ -1,122 +1,360 @@
 <!DOCTYPE html>
+
 <html xmlns:th="http://www.thymeleaf.org">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>Claim Detail</title>
+
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" th:href="@{/css/style.css}">
+
+    <style>
+
+        /* Ensuring the layout matches your screenshot */
+
+        .user-switcher-bar {
+
+            background: white;
+
+            border: 1px solid #e2e8f0;
+
+            border-radius: 8px;
+
+            padding: 12px 24px;
+
+            margin-bottom: 24px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+
+        }
+
+        .main-header {
+
+            margin-bottom: 32px;
+
+        }
+
+        .main-header h1 {
+
+            color: #0e4f66;
+
+            font-size: 28px;
+
+            margin-bottom: 8px;
+
+        }
+
+        .status-pill {
+
+            background: #e2e8f0;
+
+            padding: 4px 12px;
+
+            border-radius: 99px;
+
+            font-size: 12px;
+
+            font-weight: 700;
+
+            text-transform: uppercase;
+
+        }
+
+    </style>
+
 </head>
+
 <body>
+
 <div class="container wide">
-    <header>
+
+
+
+    <div class="user-switcher-bar">
+
+        <div style="display: flex; align-items: center; gap: 8px;">
+
+            <strong style="color: #4338ca;">👤 Viewing as:</strong>
+
+            <span th:text="${user != null ? user.name + ' (' + user.role + ')' : 'Unknown'}"></span>
+
+        </div>
+
+       
+
+        <form th:action="@{/switch-user}" method="post" style="display:flex; gap:8px; align-items:center;">
+
+            <input type="hidden" name="redirectTo" th:value="'/claims/' + ${claim.id}">
+
+            <select name="email" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: #f8fafc;">
+
+                <option value="employee@corp.com" th:selected="${user?.email == 'employee@corp.com'}">Aarav (Employee)</option>
+
+                <option value="teamlead@corp.com" th:selected="${user?.email == 'teamlead@corp.com'}">Priya (Team Lead)</option>
+
+                <option value="depthead@corp.com" th:selected="${user?.email == 'depthead@corp.com'}">Neha (Dept Head)</option>
+
+                <option value="cfo@corp.com"      th:selected="${user?.email == 'cfo@corp.com'}">Raj (CFO)</option>
+
+                <option value="finance@corp.com"   th:selected="${user?.email == 'finance@corp.com'}">Maya (Finance)</option>
+
+            </select>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 0;">Switch</button>
+
+        </form>
+
+    </div>
+
+
+
+    <header class="main-header" style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+
         <div>
-            <h1 th:text="${claim.title}">Claim</h1>
-            <p class="subtle" th:text="${claim.description}"></p>
+
+            <h1 th:text="${claim.title}" style="margin: 0;">Claim Title</h1>
+
+            <span class="status-pill" th:text="${claim.status}" style="display: inline-block; margin-top: 8px;">DRAFT</span>
+
         </div>
-        <div class="actions">
-            <a th:href="@{/}" class="btn btn-outline">Dashboard</a>
-            <span th:class="'status-badge status-' + ${claim.status}" th:text="${claim.status}"></span>
-        </div>
+
+        <a th:href="@{/}" class="btn" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; white-space: nowrap;">
+
+            ← Back to Dashboard
+
+        </a>
+
     </header>
 
-    <section class="flash" th:if="${message}" th:text="${message}"></section>
+
+
+    <section class="flash" th:if="${message}" th:text="${message}" style="background: #e0fcf4; color: #0a5c4a; border: 1px solid #b2f5ea; padding: 12px; border-radius: 8px; margin-bottom: 24px;"></section>
+
+    <section class="flash-error" th:if="${error}" th:text="${error}" style="background: #fff5f5; color: #c53030; border: 1px solid #feb2b2; padding: 12px; border-radius: 8px; margin-bottom: 24px;"></section>
+
+
 
     <section class="grid-two">
+
         <div class="glass-panel">
-            <h2>Add Expense Entry</h2>
+
+            <h2 style="margin-bottom: 20px;">Add Expense Entry</h2>
+
             <form th:action="@{/claims/{id}/entries(id=${claim.id})}" method="post" enctype="multipart/form-data">
+
                 <div class="form-group">
-                    <label for="category">Category</label>
-                    <select id="category" name="category">
-                        <option th:each="category : ${categories}" th:value="${category}" th:text="${category}"></option>
+
+                    <label>Department</label>
+
+                    <select name="department" class="form-control">
+                        <option value="" disabled selected>Select department</option>
+                        <option th:each="d : ${departments}" th:value="${d}" th:text="${d}"></option>
                     </select>
+
                 </div>
-                <div class="form-grid">
+
+                <div class="form-group">
+
+                    <label>Category</label>
+
+                    <select name="category" class="form-control">
+
+                        <option th:each="cat : ${categories}" th:value="${cat}" th:text="${cat}"></option>
+
+                    </select>
+
+                </div>
+
+               
+
+                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+
                     <div class="form-group">
-                        <label for="amount">Amount</label>
-                        <input id="amount" name="amount" type="number" step="0.01" required>
+
+                        <label>Amount</label>
+
+                        <input name="amount" type="number" step="0.01" class="form-control" required>
+
                     </div>
+
                     <div class="form-group">
-                        <label for="currency">Currency</label>
-                        <select id="currency" name="currency">
+
+                        <label>Currency</label>
+
+                        <select name="currency" class="form-control">
+
                             <option>USD</option>
-                            <option>EUR</option>
-                            <option>GBP</option>
+
                             <option>INR</option>
-                            <option>JPY</option>
+
+                            <option>EUR</option>
+
                         </select>
+
                     </div>
+
                 </div>
+
+
+
                 <div class="form-group">
-                    <label for="description">Entry description</label>
-                    <input id="description" name="description" type="text" placeholder="Flight ticket / hotel invoice / team lunch">
+
+                    <label>Entry description</label>
+
+                    <input name="description" type="text" class="form-control" placeholder="Flight ticket / hotel invoice / team lunch">
+
                 </div>
+
+
+
                 <div class="form-group">
-                    <label for="receipt">Receipt upload</label>
-                    <input id="receipt" name="receipt" type="file" accept="image/*,.pdf">
+
+                    <label>Receipt upload</label>
+
+                    <input name="receipt" type="file" class="form-control">
+
                 </div>
+
+
+
                 <button type="submit" class="btn btn-primary">Add Entry</button>
+
             </form>
+
         </div>
+
+
 
         <div class="glass-panel">
-            <h2>Claim Summary</h2>
-            <div class="summary-list">
-                <div><strong>Employee:</strong> <span th:text="${claim.employee.name}"></span></div>
-                <div><strong>Department:</strong> <span th:text="${claim.employee.department}"></span></div>
-                <div><strong>Total USD:</strong> <span th:text="'$' + ${#numbers.formatDecimal(claim.convertedAmountUsd, 1, 2)}"></span></div>
-                <div><strong>Entries:</strong> <span th:text="${claim.entries.size()}"></span></div>
+
+            <h2 style="margin-bottom: 20px;">Claim Summary</h2>
+
+            <div style="line-height: 2; font-size: 16px;">
+
+                <p><strong>Employee:</strong> <span th:text="${claim.employee.name}"></span></p>
+
+                <p><strong>Department:</strong> <span th:text="${claim.employee.department}"></span></p>
+
+                <p><strong>Total USD:</strong> <span th:text="'$' + ${#numbers.formatDecimal(claim.convertedAmountUsd, 1, 2)}"></span></p>
+
+                <p><strong>Entries:</strong> <span th:text="${claim.entries.size()}"></span></p>
+
             </div>
 
-            <div class="actions top-gap">
-                <form th:if="${claim.status.name() == 'DRAFT'}" th:action="@{/claims/{id}/submit(id=${claim.id})}" method="post">
-                    <button class="btn btn-success" type="submit">Submit Claim</button>
-                </form>
-                <form th:if="${claim.status.name().startsWith('PENDING')}" th:action="@{/claims/{id}/approve(id=${claim.id})}" method="post">
-                    <button class="btn btn-primary" type="submit">Approve Next Step</button>
-                </form>
-                <form th:if="${claim.status.name().startsWith('PENDING')}" th:action="@{/claims/{id}/reject(id=${claim.id})}" method="post">
-                    <button class="btn btn-danger" type="submit">Reject</button>
-                </form>
-                <form th:if="${claim.status.name() == 'FULLY_APPROVED'}" th:action="@{/claims/{id}/reimburse(id=${claim.id})}" method="post">
-                    <button class="btn btn-success" type="submit">Disburse and Update Budget</button>
-                </form>
+
+
+                <div class="actions" style="margin-top: 24px;">
+
+                    <form th:if="${claim.status.name() == 'DRAFT'}" th:action="@{/claims/{id}/submit(id=${claim.id})}" method="post">
+
+                        <button class="btn btn-success" style="width: 100%; padding: 12px;" type="submit">Submit Claim</button>
+
+                    </form>
+
+
+
+                <div th:if="${claim.status.name().startsWith('PENDING') and user?.role != 'EMPLOYEE'}" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+
+                    <form th:action="@{/claims/{id}/approve(id=${claim.id})}" method="post" style="width: 100%;">
+
+                        <button class="btn btn-primary" style="width: 100%;" type="submit">
+
+                            Approve Claim as <span th:text="${user.role}"></span>
+
+                        </button>
+
+                    </form>
+
+                    <form th:action="@{/claims/{id}/reject(id=${claim.id})}" method="post" style="width: 100%;">
+
+                        <button class="btn btn-danger" style="width: 100%; background-color: #dc2626; color: white; border: none; padding: 10px; border-radius: 8px; font-weight: 600; cursor: pointer;" type="submit">
+
+                            Reject Claim
+
+                        </button>
+
+                    </form>
+
+                </div>
+
             </div>
+
+        </div>  
+
         </div>
+
+        </div>
+
     </section>
 
-    <section class="glass-panel top-gap">
+
+
+    <section class="glass-panel" style="margin-top: 24px;">
+
         <h2>Entries</h2>
+
         <table>
+
             <thead>
-            <tr>
-                <th>Category</th>
-                <th>Original Amount</th>
-                <th>USD</th>
-                <th>Receipt</th>
-                <th>Policy</th>
-                <th>OCR Result</th>
-            </tr>
+
+                <tr>
+
+                    <th>Category</th>
+
+                    <th>Amount</th>
+
+                    <th>USD</th>
+
+                    <th>Policy</th>
+
+                    <th>Status</th>
+
+                </tr>
+
             </thead>
+
             <tbody>
-            <tr th:each="entry : ${claim.entries}">
-                <td th:text="${entry.category}"></td>
-                <td th:text="${entry.amount} + ' ' + ${entry.currency}"></td>
-                <td th:text="'$' + ${#numbers.formatDecimal(entry.convertedAmountUsd, 1, 2)}"></td>
-                <td th:text="${entry.receiptImagePath != null ? entry.receiptImagePath : 'Manual'}"></td>
-                <td>
-                    <span th:class="${entry.policyCompliant} ? 'pill-ok' : 'pill-bad'"
-                          th:text="${entry.policyCompliant} ? 'Compliant' : 'Violation'"></span>
-                </td>
-                <td th:text="${entry.receiptVerified} ? 'Verified' : (entry.manualReviewRequired ? 'Manual review' : 'Pending')"></td>
-            </tr>
-            <tr th:if="${#lists.isEmpty(claim.entries)}">
-                <td colspan="6">No entries added yet.</td>
-            </tr>
+
+                <tr th:each="entry : ${claim.entries}">
+
+                    <td th:text="${entry.category}"></td>
+
+                    <td th:text="${entry.amount} + ' ' + ${entry.currency}"></td>
+
+                    <td th:text="'$' + ${#numbers.formatDecimal(entry.convertedAmountUsd, 1, 2)}"></td>
+
+                    <td>
+
+                        <span th:class="${entry.policyCompliant} ? 'pill-ok' : 'pill-bad'"
+
+                              th:text="${entry.policyCompliant} ? 'Compliant' : 'Violation'"></span>
+
+                    </td>
+
+                    <td th:text="${claim.status.name() == 'PAID' or claim.status.name() == 'APPROVED_BY_TL' or claim.status.name() == 'APPROVED_BY_DH' or claim.status.name() == 'FULLY_APPROVED' or claim.status.name() == 'PAID'} ? 'Approved' : 'Pending'"></td>
+
+                </tr>
+
             </tbody>
+
         </table>
+
     </section>
+
 </div>
+
 </body>
+
 </html>

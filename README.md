@@ -30,9 +30,9 @@ It demonstrates core object-oriented design patterns in a practical workflow:
   - reimbursement method (Direct Deposit or Cheque)
 - Automatic conversion to USD using fixed adapter rates
 - Approval chain by USD value:
-  - <= 1000: approved by manager
-  - > 1000 and <= 5000: approved by finance
-  - > 5000: approved by director
+  - <= $1,000: Team Lead approval required
+  - $1,001 - $5,000: Department Head approval required
+  - > $5,000: CFO approval required
 - Reimburse approved claims using selected payment strategy
 - Dashboard to view all claims and actions
 - CSV report export for all expenses
@@ -64,9 +64,9 @@ cd CorpExpense-Tracker
 
 3. Open in browser
 
-- App dashboard: http://localhost:8080/
-- Submit claim page: http://localhost:8080/submit
-- H2 console: http://localhost:8080/h2-console
+- App dashboard: http://localhost:8081/
+- Submit claim page: http://localhost:8081/submit
+- H2 console: http://localhost:8081/h2-console
 
 H2 console connection values:
 - JDBC URL: `jdbc:h2:mem:expensedb;DB_CLOSE_DELAY=-1`

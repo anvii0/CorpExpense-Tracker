@@ -1,20 +1,13 @@
 package com.pesu.expense.expense_claim_system.controller;
 
-import com.pesu.expense.expense_claim_system.model.EntryCategory;
-import com.pesu.expense.expense_claim_system.model.Expense;
-import com.pesu.expense.expense_claim_system.model.User;
-import com.pesu.expense.expense_claim_system.repository.ExpenseRepository;
-import com.pesu.expense.expense_claim_system.repository.UserRepository;
-import com.pesu.expense.expense_claim_system.service.audit.AuditTrailService;
-import com.pesu.expense.expense_claim_system.service.budget.BudgetService;
-import com.pesu.expense.expense_claim_system.service.claim.ExpenseClaimService;
-import com.pesu.expense.expense_claim_system.service.report.ReportGenerator;
-import com.pesu.expense.expense_claim_system.service.report.ReportStrategyFactory;
+import java.time.LocalDate;
+import java.util.List;
+
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,8 +17,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
-import java.time.LocalDate;
-import java.util.List;
+import com.pesu.expense.expense_claim_system.model.EntryCategory;
+import com.pesu.expense.expense_claim_system.model.Expense;
+import com.pesu.expense.expense_claim_system.model.ExpenseStatus;
+import com.pesu.expense.expense_claim_system.model.User;
+import com.pesu.expense.expense_claim_system.repository.ExpenseRepository;
+import com.pesu.expense.expense_claim_system.repository.UserRepository;
+import com.pesu.expense.expense_claim_system.service.audit.AuditTrailService;
+import com.pesu.expense.expense_claim_system.service.budget.BudgetService;
+import com.pesu.expense.expense_claim_system.service.claim.ExpenseClaimService;
+import com.pesu.expense.expense_claim_system.service.report.ReportGenerator;
+import com.pesu.expense.expense_claim_system.service.report.ReportStrategyFactory;
+
+import jakarta.servlet.http.HttpSession;
 
 @Controller
 @RequestMapping
@@ -53,8 +57,23 @@ public class ExpenseController {
         this.reportStrategyFactory = reportStrategyFactory;
     }
 
+    private User currentUser(HttpSession session) {
+        String email = (String) session.getAttribute("currentUserEmail");
+        if (email == null) email = "employee@corp.com";
+        return userRepository.findByEmail(email).orElse(null);
+    }
+
+    @PostMapping("/switch-user")
+    public String switchUser(@RequestParam String email,
+                             @RequestParam(defaultValue = "/") String redirectTo,
+                             HttpSession session) {
+        session.setAttribute("currentUserEmail", email);
+        return "redirect:" + redirectTo;
+    }
+
     @GetMapping("/")
-    public String dashboard(Model model) {
+    public String dashboard(Model model, HttpSession session) {
+        model.addAttribute("user", currentUser(session));
         model.addAttribute("claims", expenseClaimService.allClaims());
         model.addAttribute("budgets", budgetService.allBudgets());
         model.addAttribute("logs", auditTrailService.latestLogs());
@@ -76,16 +95,36 @@ public class ExpenseController {
             RedirectAttributes redirectAttributes) {
         User user = userRepository.findById(userId).orElseThrow();
         Expense claim = expenseClaimService.createDraft(title, description, paymentMethod, user);
-        redirectAttributes.addFlashAttribute("message", "Claim draft created. Add entries before submitting.");
+        redirectAttributes.addFlashAttribute("message", "Claim draft created.");
         return "redirect:/claims/" + claim.getId();
     }
 
     @GetMapping("/claims/{id}")
-    public String viewClaim(@PathVariable Long id, Model model) {
-        model.addAttribute("claim", expenseClaimService.findClaim(id));
-        model.addAttribute("categories", EntryCategory.values());
-        return "claim-detail";
+    public String viewClaim(@PathVariable Long id, Model model, HttpSession session) {
+    Expense claim = expenseClaimService.findClaim(id);
+    User user = currentUser(session);
+    
+    model.addAttribute("user", user);
+    model.addAttribute("claim", claim);
+    model.addAttribute("categories", EntryCategory.values());
+    // Provide department names to the view for entry selection
+    model.addAttribute("departments", budgetService.allBudgets().stream().map(b -> b.getDepartmentName()).toList());
+
+    boolean canApprove = false;
+    // Since getRole() returns a String, we compare it directly
+    String role = user.getRole(); 
+
+    if (claim.getStatus() == ExpenseStatus.PENDING_TEAM_LEAD && "TEAM_LEAD".equals(role)) {
+        canApprove = true;
+    } else if (claim.getStatus() == ExpenseStatus.PENDING_DEPT_HEAD && "DEPT_HEAD".equals(role)) {
+        canApprove = true;
+    } else if (claim.getStatus() == ExpenseStatus.PENDING_CFO && "CFO".equals(role)) {
+        canApprove = true;
     }
+    
+    model.addAttribute("canApprove", canApprove);
+    return "claim-detail";
+}
 
     @PostMapping("/claims/{id}/entries")
     public String addEntry(
@@ -94,26 +133,37 @@ public class ExpenseController {
             @RequestParam Double amount,
             @RequestParam String currency,
             @RequestParam(defaultValue = "") String description,
+            @RequestParam(defaultValue = "") String department,
             @RequestParam(required = false) MultipartFile receipt,
             RedirectAttributes redirectAttributes) {
-        expenseClaimService.addEntry(id, category, amount, currency, description, receipt);
-        redirectAttributes.addFlashAttribute("message", "Expense entry added with receipt and policy validation.");
+        expenseClaimService.addEntry(id, category, amount, currency, description, department, receipt);
+        redirectAttributes.addFlashAttribute("message", "Expense entry added.");
         return "redirect:/claims/" + id;
     }
 
     @PostMapping("/claims/{id}/submit")
     public String submitClaim(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        expenseClaimService.submitClaim(id);
-        redirectAttributes.addFlashAttribute("message", "Claim submitted into the approval workflow.");
+        try {
+            expenseClaimService.submitClaim(id);
+            redirectAttributes.addFlashAttribute("message", "Claim submitted.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", "Error: " + e.getMessage());
+        }
         return "redirect:/claims/" + id;
     }
 
-    @PostMapping("/claims/{id}/approve")
-    public String approveClaim(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        expenseClaimService.approveClaim(id);
-        redirectAttributes.addFlashAttribute("message", "Approval step processed.");
-        return "redirect:/claims/" + id;
+@PostMapping("/claims/{id}/approve")
+public String approveClaim(@PathVariable Long id, HttpSession session, RedirectAttributes redirectAttributes) {
+    try {
+        User user = currentUser(session);
+        expenseClaimService.approveClaim(id, user);
+        redirectAttributes.addFlashAttribute("message", "Claim approved by " + user.getName());
+    } catch (Exception e) {
+        // This prevents the 500 Error page from showing
+        redirectAttributes.addFlashAttribute("error", "Approval Failed: " + e.getMessage());
     }
+    return "redirect:/claims/" + id;
+}
 
     @PostMapping("/claims/{id}/reject")
     public String rejectClaim(@PathVariable Long id, RedirectAttributes redirectAttributes) {
@@ -124,8 +174,12 @@ public class ExpenseController {
 
     @PostMapping("/claims/{id}/reimburse")
     public String reimburseClaim(@PathVariable Long id, RedirectAttributes redirectAttributes) {
-        expenseClaimService.reimburseClaim(id);
-        redirectAttributes.addFlashAttribute("message", "Reimbursement completed and budget updated.");
+        try {
+            expenseClaimService.reimburseClaim(id);
+            redirectAttributes.addFlashAttribute("message", "Reimbursed.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+        }
         return "redirect:/claims/" + id;
     }
 
